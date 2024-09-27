@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import boto3 as bt
 
 st.markdown("""
     <style>
