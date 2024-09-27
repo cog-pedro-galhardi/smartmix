@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import boto3 as bt
 
 st.markdown("""
     <style>
@@ -39,16 +40,35 @@ st.markdown("<h1 style='color: blue;'><strong>Smart Mix</strong></h1>", unsafe_a
 
 st.markdown("<h4 style='color: blue;'><strong>Informe a localização informada da loja a ser aberta:(Brick, Utc)</strong></h4>", unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     brick = st.text_input("", placeholder="Brick", label_visibility='hidden')
+    st.write(brick)
 
 with col2:
     utc = st.text_input("", placeholder="Utc", label_visibility='hidden')
+    st.write(utc)
     
 with col3:
-    tamLoja = st.text_input("colocar tbm a região", placeholder="Tamanho da Loja", label_visibility='hidden')
-    #colocar tbm a região
+    tamLoja = st.selectbox(
+    "Tamanho de sua loja",
+    ("P", "M", "G", "GG"),
+    index=None,
+    placeholder="Tamanho da loja",
+)
+
+st.write("O tamanho da loja selecionada é:", tamLoja) 
     
+with col4:
+    regiao = st.selectbox(
+    "Selecionar sua Região",
+    ("Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"),
+    index=None,
+    placeholder="Sua região",
+)
+
+st.write("A sua região selecionada é:", regiao)  
+
+
 st.markdown("<img class='logo' src='logo.png' alt='Logo'>", unsafe_allow_html=True)
