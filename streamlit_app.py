@@ -12,10 +12,9 @@ st.markdown(
     "<h4 style='color: blue;'><strong>Informe a localização informada da loja a ser aberta:(Brick, Utc)</strong></h4>",
     unsafe_allow_html=True,
 )
-import streamlit as st
 
-# Injetar CSS personalizado para estilizar os botões
-st.markdown("""
+st.markdown(
+    """
     <style>
     div.stButton > button {
         background-color: #007BFF;
@@ -44,17 +43,18 @@ st.markdown("""
         color: white;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
 
-# col1, col2 = st.columns(2)
+col1, col2 = st.columns(2)
 
-# with col1:
-#     st.image("cog.png", width=100)  # Ajuste o width conforme necessário
+with col1:
+    st.image("cog.png", width=100)  # Ajuste o width conforme necessário
 
-# with col2:
-#     st.image("farm.png", width=200)
-
+with col2:
+    st.image("farm.png", width=200)
 
 
 # Mock de inputs
@@ -66,10 +66,14 @@ st.markdown("""
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    brick_input = st.number_input("Preencha com o Brick", placeholder="Brick", value = None, step = 1)
+    brick_input = st.number_input(
+        "Preencha com o Brick", placeholder="Brick", value=None, step=1
+    )
 
 with col2:
-    utc_input = st.number_input("Preencha com o Utc", placeholder="Utc", value = None, step = 1)
+    utc_input = st.number_input(
+        "Preencha com o Utc", placeholder="Utc", value=None, step=1
+    )
 
 with col3:
     tamLoja_input = st.selectbox(
@@ -79,12 +83,17 @@ with col3:
         placeholder="Tamanho da loja",
     )
 
-    
 
 with col4:
     regiao_input = st.selectbox(
         "Selecionar sua Região:",
-        ("Região Norte", "Região Nordeste", "Região Centro-Oeste", "Região Sudeste", "Região Sul"),
+        (
+            "Região Norte",
+            "Região Nordeste",
+            "Região Centro-Oeste",
+            "Região Sudeste",
+            "Região Sul",
+        ),
         index=None,
         placeholder="Sua região",
     )
@@ -92,7 +101,7 @@ with col4:
 st.write(brick_input, utc_input, tamLoja_input, regiao_input)
 
 if st.button("Processamento dos dados"):
-    
+
     bucket_name = "smartmixfarpoc"
     arquivos_s3 = {
         "perfil_lojas": "Perfil lojas tratado.xlsx",
@@ -107,20 +116,19 @@ if st.button("Processamento dos dados"):
     # conectando com a AWS
     load_dotenv()
     session = boto3.Session(
-        aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID'),
-        aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY'),
+        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
         region_name="us-east-2",
     )
     s3 = session.client("s3")
 
-
-    #funcao para download e leitura de arquivos do S3
+    # funcao para download e leitura de arquivos do S3
     def baixar_arquivo_s3(nome_arquivo, tipo="excel"):
-        st.write(f"Baixando arquivo: {nome_arquivo}...")  
+        st.write(f"Baixando arquivo: {nome_arquivo}...")
         try:
             obj = s3.get_object(Bucket=bucket_name, Key=nome_arquivo)
             content = obj["Body"].read()
-            st.write(f"Arquivo {nome_arquivo} baixado com sucesso!")  
+            st.write(f"Arquivo {nome_arquivo} baixado com sucesso!")
 
             if tipo == "excel":
                 return pd.read_excel(io.BytesIO(content))
@@ -132,8 +140,7 @@ if st.button("Processamento dos dados"):
             st.error(f"Erro ao baixar {nome_arquivo}: {e}")
             return None
 
-
-    # baixar e carregar os dados do bucket 
+    # baixar e carregar os dados do bucket
     perfil_lojas = baixar_arquivo_s3(arquivos_s3["perfil_lojas"])
     iqvia_med = baixar_arquivo_s3(arquivos_s3["iqvia_med"])
     iqvia_naomed = baixar_arquivo_s3(arquivos_s3["iqvia_naomed"])
@@ -145,7 +152,7 @@ if st.button("Processamento dos dados"):
     cadastro_produtos = baixar_arquivo_s3(arquivos_s3["cadastro_produtos"], tipo="csv")
 
     # ajustar as categorias no cadastro de produtos
-    st.write("Ajustando categorias no cadastro de produtos...")  
+    st.write("Ajustando categorias no cadastro de produtos...")
     cadastro_produtos["categoria_ajustada"] = cadastro_produtos.apply(
         lambda row: (
             row["classe_1"]
@@ -154,10 +161,9 @@ if st.button("Processamento dos dados"):
         ),
         axis=1,
     )
-    st.write("Categorias ajustadas com sucesso!")  
+    st.write("Categorias ajustadas com sucesso!")
 
-
-    #classificação Pareto
+    # classificação Pareto
     def pareto_classification(row):
         if row["cumulative_percentage"] <= 50:
             return "A"
@@ -166,22 +172,23 @@ if st.button("Processamento dos dados"):
         else:
             return "C"
 
-
-    #gerar a classificação Pareto
+    # gerar a classificação Pareto
     def df_pareto_func(df, col1, col2, col_unid):
-        st.write("Gerando classificação Pareto...")  
+        st.write("Gerando classificação Pareto...")
         # Agrupar por 'brick', 'categoria ajustada', e 'ean' e somar 'sum_unidade'
         pareto_out = df.groupby([col1, col2, "ean"])[col_unid].sum().reset_index()
 
-        #ordenar pelos valores de 'brick', 'categoria ajustada', e 'sum_unidade'
+        # ordenar pelos valores de 'brick', 'categoria ajustada', e 'sum_unidade'
         pareto_out = pareto_out.sort_values(
             by=[col1, col2, col_unid], ascending=[True, True, False]
         )
 
         # soma cumulativa de 'sum_unidade' para cada 'brick' e 'categoria ajustada'
-        pareto_out["cumulative_sum"] = pareto_out.groupby([col1, col2])[col_unid].cumsum()
+        pareto_out["cumulative_sum"] = pareto_out.groupby([col1, col2])[
+            col_unid
+        ].cumsum()
 
-        #porcentagem cumulativa
+        # porcentagem cumulativa
         pareto_out["cumulative_percentage"] = (
             pareto_out["cumulative_sum"]
             / pareto_out.groupby([col1, col2])[col_unid].transform("sum")
@@ -192,19 +199,18 @@ if st.button("Processamento dos dados"):
             pareto_classification, axis=1
         )
 
-        st.write("Classificação Pareto gerada com sucesso!")  
+        st.write("Classificação Pareto gerada com sucesso!")
         return pareto_out
 
-
     # feiltrar os perfis por tamanho e regiao
-    st.write("Filtrando perfil de lojas...")  
+    st.write("Filtrando perfil de lojas...")
     perfil_lojas_filtrado = perfil_lojas[
         (perfil_lojas["tamanho_sigla"] == tamLoja_input)
         & (perfil_lojas["Região"] == regiao_input)
     ]
     st.write(
         f"Perfil de lojas filtrado: {len(perfil_lojas_filtrado)} registros encontrados."
-    )  
+    )
 
     # verificar se o data frame esta vazio
     if perfil_lojas_filtrado.empty:
@@ -212,12 +218,8 @@ if st.button("Processamento dos dados"):
             "Nenhuma loja encontrada com o filtro aplicado (tamanho e região). Verifique os inputs."
         )
     else:
-        st.write(
-            perfil_lojas_filtrado.head()
-        ) 
-    st.write(
-        "Fazendo merge de classe social com cadastro de produtos..."
-    )  
+        st.write(perfil_lojas_filtrado.head())
+    st.write("Fazendo merge de classe social com cadastro de produtos...")
 
     try:
         # verificar se os DataFrames tem dados
@@ -226,7 +228,7 @@ if st.button("Processamento dos dados"):
         st.write(
             f"Tamanho do DataFrame 'perfil_lojas_filtrado': {perfil_lojas_filtrado.shape}"
         )
-        
+
         # verificar se as colunas de merge existem dados
         st.write(
             f"Checando valores nulos em 'sellout_julho' para 'cod_barras': {sellout_julho['cod_barras'].isnull().sum()}"
@@ -246,7 +248,7 @@ if st.button("Processamento dos dados"):
             cadastro_produtos, left_on="cod_barras", right_on="ean", how="left"
         )
 
-        #merge com 'perfil_lojas_filtrado'
+        # merge com 'perfil_lojas_filtrado'
         merge_classe_categoria = merge_classe_categoria.merge(
             perfil_lojas_filtrado, left_on="cnpj", right_on="CNPJ", how="left"
         )
@@ -263,7 +265,7 @@ if st.button("Processamento dos dados"):
         else:
             st.write("Nenhum EAN None encontrado.")
 
-        st.write("Merge de classe social realizado com sucesso!")  
+        st.write("Merge de classe social realizado com sucesso!")
     except Exception as e:
         st.error(f"Erro ao fazer merge de classe social: {e}")
 
@@ -275,21 +277,21 @@ if st.button("Processamento dos dados"):
         merge_classe_categoria["uf_tam"] = (
             merge_classe_categoria["Região"] + merge_classe_categoria["tamanho_sigla"]
         )
-        st.write("Coluna UF e tamanho da loja combinada com sucesso!")  
+        st.write("Coluna UF e tamanho da loja combinada com sucesso!")
     except Exception as e:
         st.error(f"Erro ao combinar UF e tamanho da loja: {e}")
 
     # classificacao pareto no dataFrame filtrado por regiao e tamanho
-    st.write(
-        "Aplicando classificação Pareto no DataFrame de classe social"
-    )  
+    st.write("Aplicando classificação Pareto no DataFrame de classe social")
     try:
         df_classe_categoria = df_pareto_func(
             merge_classe_categoria, "uf_tam", "categoria_ajustada", "sum_unidade"
         )
-        st.write("Classificação Pareto aplicada com sucesso!")  
+        st.write("Classificação Pareto aplicada com sucesso!")
     except Exception as e:
-        st.error(f"Erro ao aplicar classificação Pareto no DataFrame de classe social: {e}")
+        st.error(
+            f"Erro ao aplicar classificação Pareto no DataFrame de classe social: {e}"
+        )
 
     st.dataframe(df_classe_categoria)
 
@@ -311,7 +313,9 @@ if st.button("Processamento dos dados"):
         df_brick_categoria_filtered = df_brick_categoria[
             df_brick_categoria["brick"] == brick_input
         ]
-        df_utc_categoria_filtered = df_utc_categoria[df_utc_categoria["UTC"] == utc_input]
+        df_utc_categoria_filtered = df_utc_categoria[
+            df_utc_categoria["UTC"] == utc_input
+        ]
         st.write("Filtragem de Brick e UTC concluída com sucesso!")
     except Exception as e:
         st.error(f"Erro ao filtrar Brick e UTC: {e}")
@@ -322,18 +326,24 @@ if st.button("Processamento dos dados"):
     st.write("Combinando DataFrames filtrados")
     try:
         merged_df = df_brick_categoria_filtered.merge(
-            df_utc_categoria_filtered, on="ean", how="inner", suffixes=("_brick", "_utc")
-        ).merge(df_classe_categoria, on="ean", how="inner", suffixes=("_merged", "_classe"))
+            df_utc_categoria_filtered,
+            on="ean",
+            how="inner",
+            suffixes=("_brick", "_utc"),
+        ).merge(
+            df_classe_categoria, on="ean", how="inner", suffixes=("_merged", "_classe")
+        )
         st.write("DataFrames combinados com sucesso!")
         st.dataframe(merged_df)
 
     except Exception as e:
         st.error(f"Erro ao combinar DataFrames: {e}")
 
-    #saida da classificacao de pareto
+    # saida da classificacao de pareto
     try:
         df_out = pd.DataFrame(
             columns=[
+                "medicamentos"
                 "ean",
                 "pareto_classification_brick",
                 "pareto_classification_utc",
@@ -357,16 +367,16 @@ if st.button("Processamento dos dados"):
     except Exception as e:
         st.error(f"Erro ao adicionar classificações de Pareto: {e}")
 
-
     st.write("Processo concluído com sucesso!")
     csv = df_out.to_csv(index=False)
 
-    #botao para download
+    # botao para download
     st.download_button(
         label="Download CSV",
         data=csv,
-        file_name='dados_processados.csv',
-        mime='text/csv',
+        file_name="dados_processados.csv",
+        mime="text/csv",
     )
+
 #colocar nome do produto, e puxar dado do "cadastro do produto"
 #coluna de categoria ajustada no df_out
