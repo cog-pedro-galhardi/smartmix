@@ -48,15 +48,6 @@ st.markdown(
 )
 
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.image("cog.png", width=100)  # Ajuste o width conforme necessário
-
-with col2:
-    st.image("farm.png", width=200)
-
-
 # Mock de inputs
 # brick_input = 1032
 # utc_input = 1500404000
@@ -82,6 +73,7 @@ with col3:
         index=None,
         placeholder="Tamanho da loja",
     )
+    
 
 
 with col4:
@@ -152,7 +144,7 @@ if st.button("Processamento dos dados"):
     cadastro_produtos = baixar_arquivo_s3(arquivos_s3["cadastro_produtos"], tipo="csv")
 
     # ajustar as categorias no cadastro de produtos
-    st.write("Ajustando categorias no cadastro de produtos...")
+    st.write("Ajustando categorias no cadastro de produtos.")
     cadastro_produtos["categoria_ajustada"] = cadastro_produtos.apply(
         lambda row: (
             row["classe_1"]
@@ -174,8 +166,8 @@ if st.button("Processamento dos dados"):
 
     # gerar a classificação Pareto
     def df_pareto_func(df, col1, col2, col_unid):
-        st.write("Gerando classificação Pareto...")
-        # Agrupar por 'brick', 'categoria ajustada', e 'ean' e somar 'sum_unidade'
+        st.write("Gerando classificação Pareto.")
+
         pareto_out = df.groupby([col1, col2, "ean"])[col_unid].sum().reset_index()
 
         # ordenar pelos valores de 'brick', 'categoria ajustada', e 'sum_unidade'
@@ -320,50 +312,70 @@ if st.button("Processamento dos dados"):
     except Exception as e:
         st.error(f"Erro ao filtrar Brick e UTC: {e}")
 
-    st.dataframe(df_brick_categoria_filtered)
-
-    # juntsra os dataFrames
+    st.dataframe(cadastro_produtos)
+    # juntar os dataFrames
     st.write("Combinando DataFrames filtrados")
     try:
         merged_df = df_brick_categoria_filtered.merge(
             df_utc_categoria_filtered,
             on="ean",
             how="inner",
-            suffixes=("_brick", "_utc"),
+            suffixes=("_brick", "_utc")
         ).merge(
             df_classe_categoria, on="ean", how="inner", suffixes=("_merged", "_classe")
+        ).merge(
+            cadastro_produtos[['ean', 'produto', 'categoria_ajustada']], 
+            on="ean", 
+            how="left"
         )
-        st.write("DataFrames combinados com sucesso!")
-        st.dataframe(merged_df)
+        merged_df['categoria_ajustada'] = merged_df['categoria_ajustada_brick'].combine_first(
+            merged_df['categoria_ajustada_utc']
+        ).combine_first(
+            merged_df['categoria_ajustada_x']
+        ).combine_first(
+            merged_df['categoria_ajustada_y']
+        )
+        merged_df = merged_df.drop(['categoria_ajustada_brick', 'categoria_ajustada_utc', 'categoria_ajustada_x', 'categoria_ajustada_y'], axis=1)
+
 
     except Exception as e:
         st.error(f"Erro ao combinar DataFrames: {e}")
+    
+    st.dataframe(merged_df)
+
 
     # saida da classificacao de pareto
+
     try:
         df_out = pd.DataFrame(
             columns=[
-                "medicamentos"
                 "ean",
+                "medicamentos",
+                "grupo do produto",
                 "pareto_classification_brick",
                 "pareto_classification_utc",
                 "pareto_classification_classe",
             ]
-        )
+        ) 
+
         df_out["ean"] = merged_df["ean"]
+        df_out["medicamentos"] = merged_df["produto"]
+        df_out["grupo do produto"] = merged_df["categoria_ajustada"]
         df_out[
             [
                 "pareto_classification_brick",
                 "pareto_classification_utc",
                 "pareto_classification_classe",
-            ]
-        ] = merged_df[
-            [
+                    ]
+            ] = merged_df[
+                [
                 "pareto_classification_brick",
                 "pareto_classification_utc",
                 "pareto_classification",
-            ]
+                ]
+
         ]
+
     except Exception as e:
         st.error(f"Erro ao adicionar classificações de Pareto: {e}")
 
@@ -380,3 +392,31 @@ if st.button("Processamento dos dados"):
 
 #colocar nome do produto, e puxar dado do "cadastro do produto"
 #coluna de categoria ajustada no df_out
+# Ordem das colunas:
+# Código de EAN
+# nome do produto
+# Grupo do produto
+# pareto classificação Brick
+# Pareto classificação utc
+# Pareto classificação classe
+
+st.write("")  
+st.write("")  
+st.write("") 
+st.write("") 
+st.write("")  
+
+st.image("cogfar.png", width=300, use_column_width='never', caption="", output_format='auto')
+
+st.markdown(
+    """
+    <style>
+    img {
+        position: fixed;
+        bottom: 20px;  /* Ajuste a distância do fundo */
+        right: 20px;   /* Ajuste a distância do lado direito */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
