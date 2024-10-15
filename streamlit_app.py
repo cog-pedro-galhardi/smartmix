@@ -93,7 +93,7 @@ with col4:
 # tamLoja_input = "G"
 # regiao_input = "Região Sul"
 
-#st.write(brick_input, utc_input, tamLoja_input, regiao_input)
+# st.write(brick_input, utc_input, tamLoja_input, regiao_input)
 
 if st.button("Processamento dos dados"):
 
@@ -107,8 +107,30 @@ if st.button("Processamento dos dados"):
         "fato_pcp": "fato_pcp_cubo_farmarcas_iqvia_202409192107.csv",
         "cadastro_produtos": "cadastro_produtos_iqvia_202409192057.csv",
     }
-    progress = st.progress(0)
+    # progress = st.progress(0)
 
+    def baixar_arquivo_s3(nome_arquivo, local_file_path, tipo="excel"):
+        if not os.path.exists(local_file_path):
+            try:
+                obj = s3.get_object(Bucket=bucket_name, Key=nome_arquivo)
+                content = obj["Body"].read()
+                with open(local_file_path, "wb") as file:
+                    file.write(content)
+            except Exception as e:
+                st.error(f"Erro ao baixar {nome_arquivo}: {e}")
+                return None
+        else:
+            st.write(f"Arquivo {local_file_path} já existe localmente.")
+
+        if tipo == "excel":
+            return pd.read_excel(local_file_path)
+        elif tipo == "csv":
+            return pd.read_csv(local_file_path, sep=";", low_memory=False)
+
+    if not os.path.exists("data"):
+        os.makedirs("data")
+
+    progress = st.progress(0)
 
     # conectando com a AWS
     load_dotenv()
@@ -119,39 +141,83 @@ if st.button("Processamento dos dados"):
     )
     s3 = session.client("s3")
 
+    total_etapas = len(arquivos_s3)
+    progress_contador = 0
+
+    perfil_lojas = baixar_arquivo_s3(
+        arquivos_s3["perfil_lojas"], "data/perfil_lojas.xlsx"
+    )
+    progress_contador += 1
+    progress.progress(progress_contador / total_etapas)
+
+    iqvia_med = baixar_arquivo_s3(arquivos_s3["iqvia_med"], "data/iqvia_med.xlsx")
+    progress_contador += 1
+    progress.progress(progress_contador / total_etapas)
+
+    iqvia_naomed = baixar_arquivo_s3(
+        arquivos_s3["iqvia_naomed"], "data/iqvia_naomed.xlsx"
+    )
+    progress_contador += 1
+    progress.progress(progress_contador / total_etapas)
+
+    close_up = baixar_arquivo_s3(
+        arquivos_s3["close_up"], "data/close_up.csv", tipo="csv"
+    )
+    progress_contador += 1
+    progress.progress(progress_contador / total_etapas)
+
+    sellout_julho = baixar_arquivo_s3(
+        arquivos_s3["sellout_julho"], "data/sellout_julho.csv", tipo="csv"
+    )
+    progress_contador += 1
+    progress.progress(progress_contador / total_etapas)
+
+    fato_pcp = baixar_arquivo_s3(
+        arquivos_s3["fato_pcp"], "data/fato_pcp.csv", tipo="csv"
+    )
+    progress_contador += 1
+    progress.progress(progress_contador / total_etapas)
+
+    cadastro_produtos = baixar_arquivo_s3(
+        arquivos_s3["cadastro_produtos"], "data/cadastro_produtos.csv", tipo="csv"
+    )
+    progress_contador += 1
+    progress.progress(progress_contador / total_etapas)
+
     # funcao para download e leitura de arquivos do S3
-    def baixar_arquivo_s3(nome_arquivo, tipo="excel"):
-        try:
-            obj = s3.get_object(Bucket=bucket_name, Key=nome_arquivo)
-            content = obj["Body"].read()
+    # def baixar_arquivo_s3(nome_arquivo, tipo="excel"):
+    #     try:
+    #         obj = s3.get_object(Bucket=bucket_name, Key=nome_arquivo)
+    #         content = obj["Body"].read()
 
-            if tipo == "excel":
-                return pd.read_excel(io.BytesIO(content))
-                progress.progress(1 / total_etapas)
+    #         if tipo == "excel":
+    #             return pd.read_excel(io.BytesIO(content))
+    #             progress.progress(1 / total_etapas)
 
-            elif tipo == "csv":
-                return pd.read_csv(
-                    io.StringIO(content.decode("utf-8")), sep=";", low_memory=False
-                )
-                progress.progress(2 / total_etapas)
+    #         elif tipo == "csv":
+    #             return pd.read_csv(
+    #                 io.StringIO(content.decode("utf-8")), sep=";", low_memory=False
+    #             )
+    #             progress.progress(2 / total_etapas)
 
-        except Exception as e:
-            st.error(f"Erro ao baixar {nome_arquivo}: {e}")
-            return None
-    total_etapas = 9
-    progress.progress(3 / total_etapas)
+    #     except Exception as e:
+    #         st.error(f"Erro ao baixar {nome_arquivo}: {e}")
+    #         return None
 
-    # baixar e carregar os dados do bucket
-    perfil_lojas = baixar_arquivo_s3(arquivos_s3["perfil_lojas"])
-    iqvia_med = baixar_arquivo_s3(arquivos_s3["iqvia_med"])
-    iqvia_naomed = baixar_arquivo_s3(arquivos_s3["iqvia_naomed"])
-    iqvia_consolidado = pd.concat([iqvia_med, iqvia_naomed])
-    close_up = baixar_arquivo_s3(arquivos_s3["close_up"], tipo="csv")
-    sellout_julho = baixar_arquivo_s3(arquivos_s3["sellout_julho"], tipo="csv")
-    fato_pcp = baixar_arquivo_s3(arquivos_s3["fato_pcp"], tipo="csv")
-    cadastro_produtos = baixar_arquivo_s3(arquivos_s3["cadastro_produtos"], tipo="csv")
+    # total_etapas = 9
+    # progress.progress(3 / total_etapas)
 
-    progress.progress(4 / total_etapas)
+    # # baixar e carregar os dados do bucket
+    # perfil_lojas = baixar_arquivo_s3(arquivos_s3["perfil_lojas"])
+    # iqvia_med = baixar_arquivo_s3(arquivos_s3["iqvia_med"])
+    # iqvia_naomed = baixar_arquivo_s3(arquivos_s3["iqvia_naomed"])
+    # iqvia_consolidado = pd.concat([iqvia_med, iqvia_naomed])
+    # close_up = baixar_arquivo_s3(arquivos_s3["close_up"], tipo="csv")
+    # sellout_julho = baixar_arquivo_s3(arquivos_s3["sellout_julho"], tipo="csv")
+    # fato_pcp = baixar_arquivo_s3(arquivos_s3["fato_pcp"], tipo="csv")
+    # cadastro_produtos = baixar_arquivo_s3(arquivos_s3["cadastro_produtos"], tipo="csv")
+
+    # progress.progress(4 / total_etapas)
 
     # ajustar as categorias no cadastro de produtos
     cadastro_produtos["categoria_ajustada"] = cadastro_produtos.apply(
@@ -163,7 +229,7 @@ if st.button("Processamento dos dados"):
         axis=1,
     )
 
-    progress.progress(5 / total_etapas)
+    # progress.progress(5 / total_etapas)
 
     # classificação Pareto
     def pareto_classification(row):
@@ -175,7 +241,8 @@ if st.button("Processamento dos dados"):
             return "C"
         else:
             return "D"
-    progress.progress(6 / total_etapas)  
+
+    # progress.progress(6 / total_etapas)
 
     # gerar a classificação Pareto
     def df_pareto_func(df, col1, col2, col_unid):
@@ -205,7 +272,7 @@ if st.button("Processamento dos dados"):
 
         return pareto_out
 
-    progress.progress(7 / total_etapas)
+    # progress.progress(7 / total_etapas)
 
     # feiltrar os perfis por tamanho e regiao
     perfil_lojas_filtrado = perfil_lojas[
@@ -213,7 +280,12 @@ if st.button("Processamento dos dados"):
         & (perfil_lojas["Região"] == regiao_input)
     ]
 
-    colunas_para_excluir = ['CD_GEOCODI', 'CD_GEOCODM', 'layer', 'fid']  # Exemplo de colunas
+    colunas_para_excluir = [
+        "CD_GEOCODI",
+        "CD_GEOCODM",
+        "layer",
+        "fid",
+    ]  # Exemplo de colunas
     perfil_lojas_filtrado = perfil_lojas_filtrado.drop(columns=colunas_para_excluir)
 
     # Exibir o número de registros filtrados
@@ -256,7 +328,6 @@ if st.button("Processamento dos dados"):
             st.error(
                 f"Erro ao aplicar classificação Pareto no DataFrame de classe social: {e}"
             )
-
 
     # filtro de brick e utc
     merge_brick_categoria = fato_pcp.merge(
@@ -316,44 +387,36 @@ if st.button("Processamento dos dados"):
             ],
             axis=1,
         )
-        merged_df["pareto_classification_brick"] = (
-            df_brick_categoria_filtered["pareto_classification"]
-            )
-        merged_df["pareto_classification_utc"] = (
-            df_utc_categoria_filtered["pareto_classification"]
-            )
-        merged_df["pareto_classification_uf_tam"] = (
-            df_classe_categoria["pareto_classification"]
-            )
+        merged_df["pareto_classification_brick"] = df_brick_categoria_filtered[
+            "pareto_classification"
+        ]
+        merged_df["pareto_classification_utc"] = df_utc_categoria_filtered[
+            "pareto_classification"
+        ]
+        merged_df["pareto_classification_uf_tam"] = df_classe_categoria[
+            "pareto_classification"
+        ]
 
-    
     except Exception as e:
         st.error(f"Erro ao combinar DataFrames: {e}")
 
-    progress.progress(8 / total_etapas)
-    result = merged_df.merge(df_sellout_julho, left_on='ean', right_on='cod_barras', how='inner')
+    # progress.progress(8 / total_etapas)
 
-    # Imprimir o número total de linhas após o join
-    st.write(f"Número total de linhas após o join: {len(result)}")
-
-
-
-            
     brick_filter_list = ["A", "B"]
     utc_filter_list = ["A", "B"]
-    uftam_filter_list = ["A", "B"] 
+    uftam_filter_list = ["A", "B"]
 
-    #func para definir se recomenda o produto se ele for A ou em tanto em iqivia, close-up ou tamanho/regiao
+    # func para definir se recomenda o produto se ele for A ou em tanto em iqivia, close-up ou tamanho/regiao
 
     def recomendar_func(row, brick_filter_list, utc_filter_list, uftam_filter_list):
-        if (row['pareto_classification_brick'] in brick_filter_list or
-            row['pareto_classification_utc'] in utc_filter_list or
-            row['pareto_classification_uf_tam'] in uftam_filter_list):
-            return 'Sim'
+        if (
+            row["pareto_classification_brick"] in brick_filter_list
+            or row["pareto_classification_utc"] in utc_filter_list
+            or row["pareto_classification_uf_tam"] in uftam_filter_list
+        ):
+            return "Sim"
         else:
-            return 'Não'
-
-
+            return "Não"
 
     try:
         df_out = pd.DataFrame(
@@ -363,26 +426,43 @@ if st.button("Processamento dos dados"):
                 "grupo do produto",
                 "pareto_classification_brick",
                 "pareto_classification_utc",
-                "pareto_classification_uf_tam", 
-                "Recomendar",  
+                "pareto_classification_uf_tam",
+                "Recomendar",
             ]
         )
 
         df_out["ean"] = merged_df["ean"]
         df_out["medicamentos"] = merged_df["produto"]
         df_out["grupo do produto"] = merged_df["categoria_ajustada"]
-        df_out[["pareto_classification_brick", "pareto_classification_utc", "pareto_classification_uf_tam"]] = merged_df[["pareto_classification_brick", "pareto_classification_utc", "pareto_classification_uf_tam"]]
-        df_out['Recomendar'] = df_out.apply(lambda row: recomendar_func(row, brick_filter_list, utc_filter_list, uftam_filter_list), axis=1)
+        df_out[
+            [
+                "pareto_classification_brick",
+                "pareto_classification_utc",
+                "pareto_classification_uf_tam",
+            ]
+        ] = merged_df[
+            [
+                "pareto_classification_brick",
+                "pareto_classification_utc",
+                "pareto_classification_uf_tam",
+            ]
+        ]
+        df_out["Recomendar"] = df_out.apply(
+            lambda row: recomendar_func(
+                row, brick_filter_list, utc_filter_list, uftam_filter_list
+            ),
+            axis=1,
+        )
 
         st.dataframe(df_out)
 
     except Exception as e:
         st.error(f"Erro ao adicionar classificações de Pareto: {e}")
 
-    progress.progress(9 / total_etapas)
+    # progress.progress(9 / total_etapas)
 
     st.write("Processamento concluído!")
-    progress.empty()
+    # progress.empty()
 
     csv = df_out.to_csv(index=False)
 
@@ -393,8 +473,7 @@ if st.button("Processamento dos dados"):
         file_name="dados_processados.csv",
         mime="text/csv",
     )
-st.markdown('</div>', unsafe_allow_html=True)
-
+st.markdown("</div>", unsafe_allow_html=True)
 
 
 # colocar nome do produto, e puxar dado do "cadastro do produto"
