@@ -4,6 +4,8 @@ import boto3
 import io
 import os
 from dotenv import load_dotenv
+load_dotenv()
+
 
 load_dotenv()
 
