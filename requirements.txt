@@ -3,5 +3,4 @@ boto3
 pandas
 openpyxl
 python-dotenv
-s3fs==x.x.x
-st-files-connection
+
