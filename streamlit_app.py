@@ -4,6 +4,7 @@ import boto3
 import io
 import os
 from dotenv import load_dotenv
+import gc
 
 
 st.markdown(
@@ -244,6 +245,7 @@ if st.button("Processar dados"):
         cadastro_produtos, left_on="cod_barras", right_on="ean", how="left"
     )
     del sellout_julho
+    gc.collect()
 
     # unir com dimensao
     sellout_categoria = sellout_categoria.merge(
@@ -254,11 +256,13 @@ if st.button("Processar dados"):
         cadastro_produtos, left_on="ean", right_on="ean", how="left"
     )
     del iqvia
+    gc.collect()
 
     close_up_categoria = close_up.merge(
         cadastro_produtos, left_on="EAN", right_on="ean", how="left"
     )
     del close_up
+    gc.collect()
 
     # Filtrar os fatos para os inputs dado
 
@@ -337,6 +341,7 @@ if st.button("Processar dados"):
         suffixes=("_merged", "_cadastro"),
     )
     del cadastro_produtos
+    gc.collect()
 
     progress_contador += 1
     progress.progress(progress_contador / total_etapas)
