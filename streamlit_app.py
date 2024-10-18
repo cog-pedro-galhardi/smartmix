@@ -134,12 +134,12 @@ if st.button("Processar dados"):
 
     progress = st.progress(0)
 
-    #load_dotenv()
+    load_dotenv()
 
     session = boto3.Session(
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        region_name="us-east-2",
+        region_name=os.getenv("AWS_REGION"),
     )
     s3 = session.client("s3")
 
@@ -243,6 +243,7 @@ if st.button("Processar dados"):
     sellout_categoria = sellout_julho.merge(
         cadastro_produtos, left_on="cod_barras", right_on="ean", how="left"
     )
+    del sellout_julho
 
     # unir com dimensao
     sellout_categoria = sellout_categoria.merge(
@@ -252,10 +253,12 @@ if st.button("Processar dados"):
     iqvia_categoria = iqvia.merge(
         cadastro_produtos, left_on="ean", right_on="ean", how="left"
     )
+    del iqvia
 
     close_up_categoria = close_up.merge(
         cadastro_produtos, left_on="EAN", right_on="ean", how="left"
     )
+    del close_up
 
     # Filtrar os fatos para os inputs dado
 
@@ -333,6 +336,7 @@ if st.button("Processar dados"):
         how="left",
         suffixes=("_merged", "_cadastro"),
     )
+    del cadastro_produtos
 
     progress_contador += 1
     progress.progress(progress_contador / total_etapas)
