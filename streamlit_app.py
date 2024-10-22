@@ -244,8 +244,6 @@ if st.button("Processar dados"):
     sellout_categoria = sellout_julho.merge(
         cadastro_produtos, left_on="cod_barras", right_on="ean", how="left"
     )
-    del sellout_julho
-    gc.collect()
 
     # unir com dimensao
     sellout_categoria = sellout_categoria.merge(
@@ -255,17 +253,12 @@ if st.button("Processar dados"):
     iqvia_categoria = iqvia.merge(
         cadastro_produtos, left_on="ean", right_on="ean", how="left"
     )
-    del iqvia
-    gc.collect()
 
     close_up_categoria = close_up.merge(
         cadastro_produtos, left_on="EAN", right_on="ean", how="left"
     )
-    del close_up
-    gc.collect()
 
     # Filtrar os fatos para os inputs dado
-
     sellout_categoria = sellout_categoria[
         (sellout_categoria["tamanho_sigla"] == tamLoja_input)
         & (sellout_categoria["Região"] == regiao_input)
@@ -306,7 +299,6 @@ if st.button("Processar dados"):
     pareto_sellout = df_pareto_func(
         sellout_categoria, "regiao_tam", "categoria_ajustada", "sum_unidade"
     )
-
     pareto_iqvia = df_pareto_func(
         iqvia_categoria, "brick", "categoria_ajustada", "sum_unidade"
     )
@@ -392,7 +384,6 @@ if st.button("Processar dados"):
     # progress.empty()
     progress_contador += 1
     progress.progress(progress_contador / total_etapas)
-
     csv = merged_df.to_csv(index=False)
 
     # botao para download
