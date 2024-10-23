@@ -4,8 +4,37 @@ import boto3
 import io
 import os
 from dotenv import load_dotenv
-import gc
 
+st.set_page_config(page_title="Smartmix", page_icon="cog.png", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    .circle {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    .red { background-color: red; }
+    .yellow { background-color: yellow; }
+    .green { background-color: green; }
+    .circle-container {
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        z-index: 9999;  /* Garantir que fique em cima de outros elementos */
+    }
+    </style>
+    <div class="circle-container">
+        <div class="circle red"></div>
+        <div class="circle yellow"></div>
+        <div class="circle green"></div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown(
     """
@@ -43,8 +72,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="main-container">', unsafe_allow_html=True)
-
 st.markdown(
     "<h1 style='color: blue;'><strong>Smart Mix</strong></h1>", unsafe_allow_html=True
 )
@@ -57,13 +84,32 @@ st.markdown(
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    brick_input = st.number_input(
-        "Preencha com o Brick", placeholder="Brick", value=None, step=1
+    brick_input = st.selectbox(
+        "Preencha com o Brick",
+        ("1032", "1033", "1034", "1036", "1043"),
+        index=None,
+        placeholder="Brick",
     )
 
 with col2:
-    utc_input = st.number_input(
-        "Preencha com o Utc", placeholder="Utc", value=None, step=1
+    utc_input = st.selectbox(
+        "Preencha com o UTC",
+        (
+            "1500404000",
+            "1502152000",
+            "1502400007",
+            "1504208010",
+            "1505304000",
+            "1505536000",
+            "1506138000",
+            "1506807015",
+            "1506807016",
+            "1506807018",
+            "1507300000",
+            "1507458000",
+        ),
+        index=None,
+        placeholder="UTC",
     )
 
 with col3:
@@ -146,6 +192,7 @@ if st.button("Processar dados"):
 
     total_etapas = 14
     progress_contador = 0
+    st.write("Importando arquivos necessários ...")
 
     perfil_lojas = baixar_arquivo_s3(
         arquivos_s3["perfil_lojas"], "data/perfil_lojas.xlsx"
@@ -260,16 +307,26 @@ if st.button("Processar dados"):
 
     # Filtrar os fatos para os inputs dado
     sellout_categoria = sellout_categoria[
-        (sellout_categoria["tamanho_sigla"] == tamLoja_input)
-        & (sellout_categoria["Região"] == regiao_input)
+        (sellout_categoria["tamanho_sigla"] == str(tamLoja_input))
+        & (sellout_categoria["Região"] == str(regiao_input))
     ]
+    perfil_lojas = perfil_lojas[
+        (perfil_lojas["tamanho_sigla"] == str(tamLoja_input))
+        & (perfil_lojas["Região"] == str(regiao_input))
+    ][["Razão Social", "CNPJ", "Bandeira", "Status", "tamanho_sigla", "Região"]]
+
+    st.write(f"{perfil_lojas.shape[0]} lojas de mesmo perfil selecionadas:")
+
+    st.dataframe(perfil_lojas)
 
     progress_contador += 1
     progress.progress(progress_contador / total_etapas)
 
-    iqvia_categoria = iqvia_categoria[(iqvia_categoria["brick"] == brick_input)]
+    iqvia_categoria = iqvia_categoria[(iqvia_categoria["brick"] == int(brick_input))]
 
-    close_up_categoria = close_up_categoria[(close_up_categoria["UTC"]) == utc_input]
+    close_up_categoria = close_up_categoria[
+        (close_up_categoria["UTC"]) == int(utc_input)
+    ]
 
     # nova coluna para concatenar regiao e tamanho (nova chave de agrupamento)
     sellout_categoria.loc[:, "regiao_tam"] = (
@@ -295,6 +352,8 @@ if st.button("Processar dados"):
 
     progress_contador += 1
     progress.progress(progress_contador / total_etapas)
+
+    st.write("Processando dados ...")
 
     pareto_sellout = df_pareto_func(
         sellout_categoria, "regiao_tam", "categoria_ajustada", "sum_unidade"
@@ -332,8 +391,6 @@ if st.button("Processar dados"):
         how="left",
         suffixes=("_merged", "_cadastro"),
     )
-    del cadastro_produtos
-    gc.collect()
 
     progress_contador += 1
     progress.progress(progress_contador / total_etapas)
@@ -373,26 +430,60 @@ if st.button("Processar dados"):
             "Recomendar",
         ]
     ]
+    merged_df = merged_df.rename(columns={"ean": "EAN"})
+    merged_df = merged_df.rename(columns={"produto": "Produto"})
+    merged_df = merged_df.rename(columns={"categoria_ajustada_cadastro": "Categoria"})
     merged_df = merged_df.rename(
-        columns={"categoria_ajustada_cadastro": "categoria_ajustada"}
+        columns={"pareto_classification_sellout": "Classificação Farmarcas"}
     )
+    merged_df = merged_df.rename(
+        columns={"pareto_classification_iqvia": "Classificação Iqvia"}
+    )
+    merged_df = merged_df.rename(
+        columns={"pareto_classification_close_up": "Classificação Close-Up"}
+    )
+    merged_df["EAN"] = merged_df["EAN"].astype(str).str.replace(r"\.0$", "", regex=True)
+
+    merged_df["Produto"] = merged_df["Produto"].str.strip()
+
+    merged_df = merged_df.sort_values(
+        by=["Categoria", "Recomendar", "Produto"],
+        ascending=[True, False, True],
+    )
+    progress_contador += 1
+    progress.progress(progress_contador / total_etapas)
+
+    recommendation_counts = (
+        merged_df.groupby("Categoria")["Recomendar"]
+        .value_counts()
+        .unstack(fill_value=0)
+        .sort_values(by="Sim", ascending=False)
+    )
+    st.write("Quantidade de produtos recomendados por categoria:")
+
+    st.dataframe(recommendation_counts)
+
+    st.write("Gerando arquivo...")
 
     progress_contador += 1
     progress.progress(progress_contador / total_etapas)
 
-    st.write("Processamento concluído!")
-    # progress.empty()
-    progress_contador += 1
-    progress.progress(progress_contador / total_etapas)
-    csv = merged_df.to_csv(index=False)
+    def to_excel(df):
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Resultado")
+        output.seek(0)
+        return output
 
-    # botao para download
+    # Criar botão de download
     st.download_button(
-        label="Download CSV",
-        data=csv,
-        file_name="dados_processados.csv",
-        mime="text/csv",
+        label="Baixar Dados",
+        data=to_excel(merged_df),
+        file_name=f"Sugestao_utc{utc_input}_brick{brick_input}_lojas{regiao_input}{tamLoja_input}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+    st.write("Processamento concluído!")
+
 
 st.image(
     "farm.png", width=150, use_column_width="never", caption="", output_format="auto"
@@ -410,3 +501,4 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+st.markdown("</div>", unsafe_allow_html=True)
